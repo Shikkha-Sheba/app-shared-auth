@@ -35,4 +35,18 @@ class SharedAuth {
 
   /// Convenience check, treats an expired token as "logged out".
   static Future<bool> isLoggedIn() => _impl.isLoggedIn();
+
+  /// Launches ekkademy_student from within edroom. Returns false if
+  /// the student app isn't installed on this device.
+  static Future<bool> launchStudentApp() => _impl.launchApp(
+    androidPackage: 'com.ekkademy.student',
+    iosUrlScheme: 'ekkademystudent',
+  );
+
+  /// Launches edroom from within ekkademy_student. Returns false if
+  /// edroom isn't installed on this device.
+  static Future<bool> launchEdroomApp() => _impl.launchApp(
+    androidPackage: 'com.ekkademy.edroom',
+    iosUrlScheme: 'ekkademyedroom',
+  );
 }

@@ -73,6 +73,23 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler {
                 appContext.contentResolver.delete(authorityUri(), null, null)
                 result.success(null)
             }
+            "launchApp" -> {
+                val pkg = call.argument<String>("androidPackage")
+                if (pkg == null) {
+                    result.success(false)
+                    return
+                }
+                val intent = appContext.packageManager.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    appContext.startActivity(intent)
+                    result.success(true)
+                } else {
+                    // Not installed, or blocked by Android 11+ package visibility
+                    // (add the peer's package to <queries> in AndroidManifest.xml).
+                    result.success(false)
+                }
+            }
             else -> result.notImplemented()
         }
     }

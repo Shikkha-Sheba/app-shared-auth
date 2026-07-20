@@ -38,6 +38,25 @@ public class SharedAuthPlugin: NSObject, FlutterPlugin {
             KeychainHelper.shared.clear()
             result(nil)
 
+        case "launchApp":
+            guard let args = call.arguments as? [String: Any],
+                  let scheme = args["iosUrlScheme"] as? String,
+                  let url = URL(string: "\(scheme)://") else {
+                result(false)
+                return
+            }
+            DispatchQueue.main.async {
+                if UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url, options: [:]) { success in
+                        result(success)
+                    }
+                } else {
+                    // Peer app not installed, or its scheme isn't listed in
+                    // THIS app's Info.plist under LSApplicationQueriesSchemes.
+                    result(false)
+                }
+            }
+
         default:
             result(FlutterMethodNotImplemented)
         }
