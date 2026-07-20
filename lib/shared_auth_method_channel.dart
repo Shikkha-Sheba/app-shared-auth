@@ -36,4 +36,18 @@ class SharedAuthMethodChannel {
     final tokens = await getTokens();
     return tokens != null && !tokens.isExpired;
   }
+
+  /// Launches the peer app. androidPackage = peer's applicationId,
+  /// iosUrlScheme = peer's custom URL scheme (no "://"). Returns false
+  /// if the peer app isn't installed.
+  Future<bool> launchApp({
+    required String androidPackage,
+    required String iosUrlScheme,
+  }) async {
+    final result = await _channel.invokeMethod<bool>('launchApp', {
+      'androidPackage': androidPackage,
+      'iosUrlScheme': iosUrlScheme,
+    });
+    return result ?? false;
+  }
 }
