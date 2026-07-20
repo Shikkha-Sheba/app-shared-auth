@@ -1,0 +1,31 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.ekkademy.shared_auth">
+
+    <!--
+      This permission is declared ONCE, by App A (the auth-owner app).
+      protectionLevel="signature" means ONLY apps signed with the SAME
+      signing key as App A can be granted this permission — this is what
+      makes it safe to expose the token via a ContentProvider.
+
+      App B must add <uses-permission android:name="com.ekkademy.shared_auth.permission.ACCESS_TOKEN" />
+      in ITS OWN manifest, and must be signed with the same key as App A
+      (same keystore, or same upload key if using Play App Signing).
+    -->
+    <permission
+        android:name="com.ekkademy.shared_auth.permission.ACCESS_TOKEN"
+        android:protectionLevel="signature" />
+
+    <application>
+        <!--
+          exported="true" is required for a cross-app provider, but access is
+          still locked down by readPermission/writePermission below, so only
+          same-signature apps can query/insert/delete/call it.
+        -->
+        <provider
+            android:name="com.ekkademy.shared_auth.SharedAuthProvider"
+            android:authorities="${applicationId}.shared_auth.provider"
+            android:exported="true"
+            android:readPermission="com.ekkademy.shared_auth.permission.ACCESS_TOKEN"
+            android:writePermission="com.ekkademy.shared_auth.permission.ACCESS_TOKEN" />
+    </application>
+</manifest>

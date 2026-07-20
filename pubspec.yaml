@@ -1,0 +1,26 @@
+name: shared_auth
+description: Shares login (access + refresh token) between two Flutter apps on the same device.
+version: 0.0.1
+homepage: https://ekkademy.internal
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.ekkademy.shared_auth
+        pluginClass: SharedAuthPlugin
+      ios:
+        pluginClass: SharedAuthPlugin

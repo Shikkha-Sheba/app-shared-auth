@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Add this SAME block to BOTH App A's and App B's ios/Runner/Runner.entitlements.
+      Both apps must be enrolled under the SAME Apple Developer Team ID for this to work.
+      Set it up in Xcode: Runner target -> Signing & Capabilities -> + Capability -> Keychain Sharing
+      -> Keychain Groups -> add "com.ekkademy.shared"
+    -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.ekkademy.shared</string>
+    </array>
+</dict>
+</plist>
