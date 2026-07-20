@@ -38,15 +38,15 @@ class SharedAuth {
 
   /// Launches ekkademy_student from within edroom. Returns false if
   /// the student app isn't installed on this device.
-  static Future<bool> launchStudentApp() => _impl.launchApp(
-    androidPackage: 'com.ekkademy.student',
+  static Future<bool> launchStudentApp({String? flavor}) => _impl.launchApp(
+    androidPackage: 'com.ekkademy.student${flavor?.isNotEmpty == true ? ".${flavor}" : ''}',
     iosUrlScheme: 'ekkademystudent',
   );
 
   /// Launches edroom from within ekkademy_student. Returns false if
   /// edroom isn't installed on this device.
-  static Future<bool> launchEdroomApp() => _impl.launchApp(
-    androidPackage: 'com.ekkademy.edroom',
+  static Future<bool> launchEdroomApp({String? flavor}) => _impl.launchApp(
+    androidPackage: 'com.ekkademy.edroom${flavor?.isNotEmpty == true ? ".${flavor}" : ''}',
     iosUrlScheme: 'ekkademyedroom',
   );
 }
