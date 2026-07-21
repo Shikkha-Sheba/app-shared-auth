@@ -3,10 +3,27 @@ import UIKit
 
 public class SharedAuthPlugin: NSObject, FlutterPlugin {
 
+    /// Set when this app is opened via scheme://open?reason=... .
+    /// Consumed (read once, then cleared) via SharedAuth.consumeLaunchReason().
+    /// AppDelegate must forward incoming URLs here — see handleIncomingURL below.
+    private static var pendingLaunchReason: String?
+
     public static func register(with registrar: FlutterPluginRegistrar) {
         let channel = FlutterMethodChannel(name: "com.ekkademy.shared_auth", binaryMessenger: registrar.messenger())
         let instance = SharedAuthPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
+    }
+
+    /// Call this from AppDelegate.application(_:open:options:) — see the
+    /// snippet in AppDelegate_snippet.swift in each example app folder.
+    @discardableResult
+    public static func handleIncomingURL(_ url: URL) -> Bool {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let reason = components?.queryItems?.first(where: { $0.name == "reason" })?.value
+        if let reason = reason {
+            pendingLaunchReason = reason
+        }
+        return true
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -40,8 +57,13 @@ public class SharedAuthPlugin: NSObject, FlutterPlugin {
 
         case "launchApp":
             guard let args = call.arguments as? [String: Any],
-                  let scheme = args["iosUrlScheme"] as? String,
-                  let url = URL(string: "\(scheme)://") else {
+                  let scheme = args["iosUrlScheme"] as? String else {
+                result(false)
+                return
+            }
+            let reason = args["reason"] as? String
+            let urlString = reason != nil ? "\(scheme)://open?reason=\(reason!)" : "\(scheme)://open"
+            guard let url = URL(string: urlString) else {
                 result(false)
                 return
             }
@@ -56,6 +78,11 @@ public class SharedAuthPlugin: NSObject, FlutterPlugin {
                     result(false)
                 }
             }
+
+        case "consumeLaunchReason":
+            let reason = SharedAuthPlugin.pendingLaunchReason
+            SharedAuthPlugin.pendingLaunchReason = nil
+            result(reason)
 
         default:
             result(FlutterMethodNotImplemented)

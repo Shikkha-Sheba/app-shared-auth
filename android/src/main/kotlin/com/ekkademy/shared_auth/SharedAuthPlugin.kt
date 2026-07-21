@@ -1,25 +1,34 @@
 package com.ekkademy.shared_auth
 
+import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
-import androidx.annotation.NonNull
+import android.content.Intent
+import android.net.Uri
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.plugins.activity.ActivityAware
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
-class SharedAuthPlugin : FlutterPlugin, MethodCallHandler {
+class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private lateinit var channel: MethodChannel
     private lateinit var appContext: Context
+    private var activityBinding: ActivityPluginBinding? = null
+
+    /** Set by edroom via SharedAuth.configurePeer("com.ekkademy.student"). */
+    private var peerApplicationId: String? = null
 
     /**
-     * Set by App B via SharedAuth.configurePeer("com.ekkademy.auth")
-     * i.e. App A's applicationId. App A never needs to call this —
-     * it just reads/writes its own local provider.
+     * Set when this app is opened via a shared_auth deep link
+     * (scheme://open?reason=...), e.g. "auth_handoff". Consumed (read once,
+     * then cleared) via SharedAuth.consumeLaunchReason(). Null on a normal
+     * icon-tap launch.
      */
-    private var peerApplicationId: String? = null
+    private var pendingLaunchReason: String? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
@@ -31,9 +40,32 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler {
         channel.setMethodCallHandler(null)
     }
 
-    private fun authorityUri(): android.net.Uri {
+    // --- ActivityAware: needed to read the launching/new Intent ---
+
+    override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        activityBinding = binding
+        captureReasonFromIntent(binding.activity.intent) // cold start
+        binding.addOnNewIntentListener { intent ->
+            captureReasonFromIntent(intent) // already-running app re-opened via deep link
+            false
+        }
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() { activityBinding = null }
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        onAttachedToActivity(binding)
+    }
+    override fun onDetachedFromActivity() { activityBinding = null }
+
+    private fun captureReasonFromIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        val reason = data.getQueryParameter("reason")
+        if (reason != null) pendingLaunchReason = reason
+    }
+
+    private fun authorityUri(): Uri {
         val authorityApp = peerApplicationId ?: appContext.packageName
-        return android.net.Uri.parse("content://$authorityApp.shared_auth.provider/tokens")
+        return Uri.parse("content://$authorityApp.shared_auth.provider/tokens")
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -75,22 +107,48 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler {
             }
             "launchApp" -> {
                 val pkg = call.argument<String>("androidPackage")
+                val reason = call.argument<String>("reason")
                 if (pkg == null) {
                     result.success(false)
                     return
                 }
-                val intent = appContext.packageManager.getLaunchIntentForPackage(pkg)
-                if (intent != null) {
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Deep-link intent (not getLaunchIntentForPackage) so we can
+                // attach ?reason=... and the peer app can read WHY it was opened.
+                val scheme = call.argument<String>("androidPackage") // fallback only
+                val uriScheme = androidSchemeFor(pkg)
+                val uri = if (reason != null) {
+                    Uri.parse("$uriScheme://open?reason=$reason")
+                } else {
+                    Uri.parse("$uriScheme://open")
+                }
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage(pkg) // target exactly this app, no chooser
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
                     appContext.startActivity(intent)
                     result.success(true)
-                } else {
-                    // Not installed, or blocked by Android 11+ package visibility
-                    // (add the peer's package to <queries> in AndroidManifest.xml).
+                } catch (e: ActivityNotFoundException) {
+                    // Not installed, no matching intent-filter, or blocked by
+                    // Android 11+ package visibility (<queries> missing).
                     result.success(false)
                 }
             }
+            "consumeLaunchReason" -> {
+                val reason = pendingLaunchReason
+                pendingLaunchReason = null
+                result.success(reason)
+            }
             else -> result.notImplemented()
+        }
+    }
+
+    // com.ekkademy.student -> ekkademystudent, com.ekkademy.edroom -> ekkademyedroom
+    private fun androidSchemeFor(applicationId: String): String {
+        return when {
+            applicationId.startsWith("com.ekkademy.student") -> "ekkademystudent"
+            applicationId.startsWith("com.ekkademy.edroom") -> "ekkademyedroom"
+            else -> applicationId.replace(".", "")
         }
     }
 }

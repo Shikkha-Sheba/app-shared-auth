@@ -38,16 +38,27 @@ class SharedAuthMethodChannel {
   }
 
   /// Launches the peer app. androidPackage = peer's applicationId,
-  /// iosUrlScheme = peer's custom URL scheme (no "://"). Returns false
+  /// iosUrlScheme = peer's custom URL scheme (no "://"). reason is an
+  /// optional tag (e.g. "auth_handoff") the peer app can read via
+  /// consumeLaunchReason() to know WHY it was opened. Returns false
   /// if the peer app isn't installed.
   Future<bool> launchApp({
     required String androidPackage,
     required String iosUrlScheme,
+    String? reason,
   }) async {
     final result = await _channel.invokeMethod<bool>('launchApp', {
       'androidPackage': androidPackage,
       'iosUrlScheme': iosUrlScheme,
+      'reason': reason,
     });
     return result ?? false;
   }
+
+  /// Reads (and clears) the reason this app instance was deep-linked open,
+  /// if any. Returns null on a normal launch (user tapped the app icon).
+  Future<String?> consumeLaunchReason() async {
+    return _channel.invokeMethod<String>('consumeLaunchReason');
+  }
 }
+

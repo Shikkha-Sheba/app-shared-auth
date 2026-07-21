@@ -38,15 +38,22 @@ class SharedAuth {
 
   /// Launches ekkademy_student from within edroom. Returns false if
   /// the student app isn't installed on this device.
-  static Future<bool> launchStudentApp({String? flavor}) => _impl.launchApp(
+  static Future<bool> launchStudentApp({String? flavor,bool authHandoff = false}) => _impl.launchApp(
     androidPackage: 'com.ekkademy.student${flavor?.isNotEmpty == true ? ".${flavor}" : ''}',
     iosUrlScheme: 'ekkademystudent',
+    reason: authHandoff ? 'auth_handoff' : null,
   );
 
   /// Launches edroom from within ekkademy_student. Returns false if
   /// edroom isn't installed on this device.
-  static Future<bool> launchEdroomApp({String? flavor}) => _impl.launchApp(
+  static Future<bool> launchEdroomApp({String? flavor,bool authHandoff = false}) => _impl.launchApp(
     androidPackage: 'com.ekkademy.edroom${flavor?.isNotEmpty == true ? ".${flavor}" : ''}',
     iosUrlScheme: 'ekkademyedroom',
+    reason: authHandoff ? 'auth_handoff' : null,
   );
+
+  /// Call this once early in your app (e.g. splash / first frame) to find
+  /// out whether this launch was a deep-link handoff from the peer app,
+  /// and why. Returns null on a normal icon-tap launch.
+  static Future<String?> consumeLaunchReason() => _impl.consumeLaunchReason();
 }
