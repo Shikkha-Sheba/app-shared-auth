@@ -1,6 +1,5 @@
 package com.ekkademy.shared_auth
 
-import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -23,12 +22,23 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var peerApplicationId: String? = null
 
     /**
-     * Set when this app is opened via a shared_auth deep link
-     * (scheme://open?reason=...), e.g. "auth_handoff". Consumed (read once,
-     * then cleared) via SharedAuth.consumeLaunchReason(). Null on a normal
-     * icon-tap launch.
+     * Set when this app is opened by the peer app with a "reason" extra
+     * (e.g. "auth_handoff"). Consumed (read once, then cleared) via
+     * SharedAuth.consumeLaunchReason(). Null on a normal icon-tap launch.
+     *
+     * IMPORTANT: we deliberately use a plain launcher Intent + putExtra()
+     * here, NOT an ACTION_VIEW/custom-scheme Intent. Flutter's engine
+     * auto-forwards ACTION_VIEW intents with a data URI to the framework
+     * as a navigation route (for go_router/Navigator 2.0 deep linking),
+     * which causes a "no routes for location" crash since this URI was
+     * never meant to be a real app route. Using extras avoids that
+     * entirely — Flutter has no opinion about Intent extras.
      */
     private var pendingLaunchReason: String? = null
+
+    private companion object {
+        const val EXTRA_REASON = "shared_auth_reason"
+    }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         appContext = binding.applicationContext
@@ -46,7 +56,7 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         activityBinding = binding
         captureReasonFromIntent(binding.activity.intent) // cold start
         binding.addOnNewIntentListener { intent ->
-            captureReasonFromIntent(intent) // already-running app re-opened via deep link
+            captureReasonFromIntent(intent) // already-running app re-opened by peer
             false
         }
     }
@@ -58,9 +68,8 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     override fun onDetachedFromActivity() { activityBinding = null }
 
     private fun captureReasonFromIntent(intent: Intent?) {
-        val data = intent?.data ?: return
-        val reason = data.getQueryParameter("reason")
-        if (reason != null) pendingLaunchReason = reason
+        val reason = intent?.getStringExtra(EXTRA_REASON) ?: return
+        pendingLaunchReason = reason
     }
 
     private fun authorityUri(): Uri {
@@ -112,25 +121,24 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                     result.success(false)
                     return
                 }
-                // Deep-link intent (not getLaunchIntentForPackage) so we can
-                // attach ?reason=... and the peer app can read WHY it was opened.
-                val scheme = call.argument<String>("androidPackage") // fallback only
-                val uriScheme = androidSchemeFor(pkg)
-                val uri = if (reason != null) {
-                    Uri.parse("$uriScheme://open?reason=$reason")
-                } else {
-                    Uri.parse("$uriScheme://open")
-                }
-                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
-                    setPackage(pkg) // target exactly this app, no chooser
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                try {
+                // Plain launcher intent, NOT ACTION_VIEW — see comment on
+                // pendingLaunchReason above for why.
+                val intent = appContext.packageManager.getLaunchIntentForPackage(pkg)
+                if (intent != null) {
+                    // NEW_TASK alone often fails to bring an already-running
+                    // peer task to the foreground (you just see the home
+                    // screen / current app "closes" instead). REORDER_TO_FRONT
+                    // forces Android to actually surface the existing task.
+                    intent.addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    )
+                    if (reason != null) intent.putExtra(EXTRA_REASON, reason)
                     appContext.startActivity(intent)
                     result.success(true)
-                } catch (e: ActivityNotFoundException) {
-                    // Not installed, no matching intent-filter, or blocked by
-                    // Android 11+ package visibility (<queries> missing).
+                } else {
+                    // Not installed, or blocked by Android 11+ package visibility
+                    // (add the peer's package to <queries> in AndroidManifest.xml).
                     result.success(false)
                 }
             }
@@ -140,15 +148,6 @@ class SharedAuthPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 result.success(reason)
             }
             else -> result.notImplemented()
-        }
-    }
-
-    // com.ekkademy.student -> ekkademystudent, com.ekkademy.edroom -> ekkademyedroom
-    private fun androidSchemeFor(applicationId: String): String {
-        return when {
-            applicationId.startsWith("com.ekkademy.student") -> "ekkademystudent"
-            applicationId.startsWith("com.ekkademy.edroom") -> "ekkademyedroom"
-            else -> applicationId.replace(".", "")
         }
     }
 }
